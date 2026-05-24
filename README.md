@@ -111,6 +111,59 @@ Key `TraceEvent` fields:
 | `error` | `str` | Error message if the node failed |
 | `output` | `dict` | Node output |
 
+## Traces & Debugging
+
+### Where traces go
+
+Trace events are emitted by the runtime binary to stdout as newline-delimited JSON and streamed to you in real time via the `on_event` callback. There is no separate log file — if you don't attach a callback, events are silently consumed and discarded.
+
+To capture a full trace for debugging, collect all events into a list:
+
+```python
+from agent_runtime import Runtime, TraceEvent, RunError
+
+rt = Runtime()
+trace: list[TraceEvent] = []
+
+try:
+    output = rt.run("./bundle.agent", inputs={...}, on_event=trace.append)
+except RunError as e:
+    # Flow-level failure — the error message and run_id are on the exception.
+    # Check the trace for the node that produced the error.
+    failed = [ev for ev in trace if ev.error]
+    for ev in failed:
+        print(f"node={ev.node} error={ev.error}")
+    raise
+```
+
+### Event types
+
+| Event | When it fires |
+|---|---|
+| `flow_start` | Flow begins executing |
+| `flow_done` | Flow completed successfully |
+| `node_start` | A node begins executing |
+| `node_done` | A node finished (check `ev.error` for failure) |
+| `tool_call` | The runtime is calling a registered tool |
+| `tool_done` | Tool call returned |
+
+### Error channels
+
+There are two ways a run can surface an error:
+
+**Node-level** — a node fails but the flow may continue (e.g. a retry). Delivered as a `TraceEvent` with `event="node_done"` and a non-empty `error` field. The `attempt` and `max_retries` fields indicate retry state.
+
+**Flow-level** — the flow terminates in an error state. The SDK raises `RunError` with the message and `run_id`. Check the collected trace to find which node caused it.
+
+**Binary crash** — the `agent-runtime` process exits with a non-zero code (misconfigured bundle, missing env var, etc.). The SDK raises `RuntimeError` with the stderr output as the message. This is distinct from a flow error and does not produce a `RunError`.
+
+### Typical debug loop
+
+1. Collect the full trace with `on_event=trace.append`
+2. On `RunError`, filter `[ev for ev in trace if ev.error]` to find the failing node
+3. Inspect `ev.inputs`, `ev.args`, and `ev.output` on surrounding events to understand the data at that point
+4. Fix the bundle or tool, then re-run
+
 ## Binary Resolution
 
 The SDK locates the `agent-runtime` binary in this order:
