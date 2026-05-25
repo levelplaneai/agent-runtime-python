@@ -16,12 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
       - name: Install build tools
-        run: uv pip install build wheel --system
+        run: pip install build wheel
 
       - name: Sync binaries from Go release
         run: python scripts/sync_binary.py ${{ github.ref_name }}
