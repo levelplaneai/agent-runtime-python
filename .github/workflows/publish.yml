@@ -1,0 +1,58 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  id-token: write  # required for OIDC trusted publishing
+  contents: read
+
+jobs:
+  build:
+    name: Build wheels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install build tools
+        run: uv pip install build wheel --system
+
+      - name: Sync binaries from Go release
+        run: python scripts/sync_binary.py ${{ github.ref_name }}
+
+      - name: Build platform wheels
+        run: python scripts/build_wheels.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: dist/*.whl
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ startsWith(github.ref_name, 'v') && (contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'testpypi' || 'pypi' }}
+      url: ${{ startsWith(github.ref_name, 'v') && (contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) && 'https://test.pypi.org/p/lp-agent-runtime-sdk' || 'https://pypi.org/p/lp-agent-runtime-sdk' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: dist/
+
+      - name: Publish to TestPyPI
+        if: contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish to PyPI
+        if: ${{ !(contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')) }}
+        uses: pypa/gh-action-pypi-publish@release/v1

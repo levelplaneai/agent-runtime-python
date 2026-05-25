@@ -1,13 +1,13 @@
-# agent-runtime-sdk
+# lp-agent-runtime-sdk
 
 Python SDK for running [agent-runtime](https://github.com/levelplaneai/agent-runtime) workflows. Wraps the agent-runtime binary to execute declarative `.agent` bundles from Python, with support for registering Python functions as callable tools.
 
 ## Installation
 
 ```bash
-pip install agent-runtime-sdk
+pip install lp-agent-runtime-sdk
 # or
-uv add agent-runtime-sdk
+uv add lp-agent-runtime-sdk
 ```
 
 The package ships pre-built binaries for macOS (arm64, amd64), Linux (amd64, arm64), and Windows (amd64) — no separate install required.

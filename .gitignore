@@ -5,3 +5,5 @@ __pycache__/
 .ruff_cache/
 dist/
 build/
+agent_runtime/bin/*
+!agent_runtime/bin/.gitkeep
