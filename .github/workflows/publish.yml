@@ -28,7 +28,9 @@ jobs:
         run: pip install build wheel
 
       - name: Sync binaries from Go release
-        run: python scripts/sync_binary.py ${{ github.ref_name }}
+        run: |
+          BINARY_TAG=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['tool']['agent-runtime']['binary-version'])")
+          python scripts/sync_binary.py "$BINARY_TAG"
 
       - name: Build platform wheels
         run: python scripts/build_wheels.py
