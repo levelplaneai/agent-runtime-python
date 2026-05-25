@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ._server import ToolServer
-from ._types import FileInput, RunError, TraceEvent
+from ._types import FileInput, MissingAPIKeyError, RunError, TraceEvent
 
 
 def _find_binary(explicit: str | None) -> str:
@@ -244,9 +244,16 @@ class Runtime:
             return {}
 
         if returncode != 0:
+            stderr_text = stderr_bytes.decode(errors="replace").strip()
+            missing_keys = [
+                line[len("missing-api-key: "):].strip()
+                for line in stderr_text.splitlines()
+                if line.startswith("missing-api-key: ")
+            ]
+            if missing_keys:
+                raise MissingAPIKeyError(missing_keys, stderr_text)
             raise RuntimeError(
-                f"agent-runtime exited with code {returncode}: "
-                f"{stderr_bytes.decode(errors='replace').strip()}"
+                f"agent-runtime exited with code {returncode}: {stderr_text}"
             )
         return {}
 

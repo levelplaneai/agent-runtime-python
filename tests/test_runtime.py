@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_runtime import FileInput, Runtime, TraceEvent
+from agent_runtime import FileInput, MissingAPIKeyError, Runtime, TraceEvent
 from agent_runtime._runtime import _find_binary
 
 BUNDLE_ROOT = Path(__file__).parent.parent.parent / "agent-runtime" / "testdata"
@@ -89,6 +89,43 @@ class TestBuildCmd:
         assert "--tool" in cmd
         idx = cmd.index("--tool")
         assert "my_ns.my_tool@v1=http://127.0.0.1:9999/tools/my_ns.my_tool@v1" == cmd[idx + 1]
+
+
+class TestReadResult:
+    def setup_method(self):
+        self.rt = Runtime.__new__(Runtime)
+        self.rt._binary = "/usr/local/bin/agent-runtime"
+        self.rt._tools = {}
+        self.rt._env = None
+
+    def test_missing_api_key_raises_MissingAPIKeyError(self, tmp_path):
+        stderr = (
+            b"error: missing API key(s) required to run bundle \"haiku_maker\"\n\n"
+            b"  ANTHROPIC_API_KEY\n"
+            b"    models : anthropic/claude-haiku-4-5-20251001\n"
+            b"    nodes  : make_haiku, critique_haiku\n"
+            b"    fix    : export ANTHROPIC_API_KEY=<your-key>\n\n"
+            b"missing-api-key: ANTHROPIC_API_KEY\n"
+        )
+        with pytest.raises(MissingAPIKeyError) as exc_info:
+            self.rt._read_result(str(tmp_path), "run-1", 1, stderr)
+        assert exc_info.value.missing_keys == ["ANTHROPIC_API_KEY"]
+
+    def test_multiple_missing_keys_parsed(self, tmp_path):
+        stderr = (
+            b"missing-api-key: ANTHROPIC_API_KEY\n"
+            b"missing-api-key: OPENAI_API_KEY\n"
+        )
+        with pytest.raises(MissingAPIKeyError) as exc_info:
+            self.rt._read_result(str(tmp_path), "run-1", 1, stderr)
+        assert sorted(exc_info.value.missing_keys) == ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]
+
+    def test_non_key_error_raises_RuntimeError(self, tmp_path):
+        stderr = b"error: bundle not found\n"
+        with pytest.raises(RuntimeError) as exc_info:
+            self.rt._read_result(str(tmp_path), "run-1", 1, stderr)
+        assert not isinstance(exc_info.value, MissingAPIKeyError)
+        assert "bundle not found" in str(exc_info.value)
 
 
 class TestTraceEvent:

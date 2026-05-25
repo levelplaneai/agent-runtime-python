@@ -74,3 +74,16 @@ class RunError(Exception):
     def __init__(self, message: str, run_id: str = "") -> None:
         super().__init__(message)
         self.run_id = run_id
+
+
+class MissingAPIKeyError(RuntimeError):
+    """Raised before a run when required LLM provider API keys are absent.
+
+    Attributes:
+        missing_keys: List of environment variable names that must be set.
+    """
+
+    def __init__(self, missing_keys: list[str], detail: str = "") -> None:
+        self.missing_keys = missing_keys
+        summary = "Missing API key(s): " + ", ".join(sorted(missing_keys))
+        super().__init__(f"{summary}\n\n{detail}".strip() if detail else summary)
