@@ -169,6 +169,7 @@ class Runtime:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=self._make_env(),
+                limit=2**22,  # 4 MB — model responses can exceed the 64 KB default
             )
             if proc.stdout is None:
                 raise RuntimeError("subprocess stdout pipe unexpectedly None")
