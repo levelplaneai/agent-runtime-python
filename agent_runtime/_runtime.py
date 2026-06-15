@@ -94,11 +94,19 @@ class Runtime:
         bundle: str,
         inputs: dict[str, Any] | None = None,
         on_event: Callable[[TraceEvent], None] | None = None,
+        start_at: str | None = None,
+        stop_after: str | None = None,
+        seed_outputs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Run a bundle synchronously and return the flow output."""
         server: ToolServer | None = None
         data_dir = tempfile.mkdtemp(prefix="agent-runtime-")
         run_id = str(uuid.uuid4())
+        seed_file: str | None = None
+        if seed_outputs:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as sf:
+                json.dump({"seed_outputs": seed_outputs}, sf)
+                seed_file = sf.name
         try:
             port = 0
             if self._tools:
@@ -106,7 +114,7 @@ class Runtime:
                 server.start()
                 port = server.port
 
-            cmd = self._build_cmd(bundle, inputs or {}, data_dir, run_id, port)
+            cmd = self._build_cmd(bundle, inputs or {}, data_dir, run_id, port, start_at=start_at, stop_after=stop_after, seed_file=seed_file)
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -145,17 +153,30 @@ class Runtime:
             if server is not None:
                 server.stop()
             shutil.rmtree(data_dir, ignore_errors=True)
+            if seed_file:
+                try:
+                    os.unlink(seed_file)
+                except OSError:
+                    pass
 
     async def arun(
         self,
         bundle: str,
         inputs: dict[str, Any] | None = None,
         on_event: Callable[[TraceEvent], Any] | None = None,
+        start_at: str | None = None,
+        stop_after: str | None = None,
+        seed_outputs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Run a bundle asynchronously and return the flow output."""
         server: ToolServer | None = None
         data_dir = tempfile.mkdtemp(prefix="agent-runtime-")
         run_id = str(uuid.uuid4())
+        seed_file: str | None = None
+        if seed_outputs:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as sf:
+                json.dump({"seed_outputs": seed_outputs}, sf)
+                seed_file = sf.name
         try:
             port = 0
             if self._tools:
@@ -163,7 +184,7 @@ class Runtime:
                 server.start()
                 port = server.port
 
-            cmd = self._build_cmd(bundle, inputs or {}, data_dir, run_id, port)
+            cmd = self._build_cmd(bundle, inputs or {}, data_dir, run_id, port, start_at=start_at, stop_after=stop_after, seed_file=seed_file)
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -195,6 +216,11 @@ class Runtime:
             if server is not None:
                 server.stop()
             shutil.rmtree(data_dir, ignore_errors=True)
+            if seed_file:
+                try:
+                    os.unlink(seed_file)
+                except OSError:
+                    pass
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -207,6 +233,9 @@ class Runtime:
         data_dir: str,
         run_id: str,
         tool_port: int,
+        start_at: str | None = None,
+        stop_after: str | None = None,
+        seed_file: str | None = None,
     ) -> list[str]:
         cmd = [self._binary, "run", bundle, "--data-dir", data_dir, "--run-id", run_id]
 
@@ -221,6 +250,13 @@ class Runtime:
         for ref in self._tools:
             url = f"http://127.0.0.1:{tool_port}/tools/{ref}"
             cmd += ["--tool", f"{ref}={url}"]
+
+        if start_at:
+            cmd += ["--from", start_at]
+        if stop_after:
+            cmd += ["--to", stop_after]
+        if seed_file:
+            cmd += ["--seed", seed_file]
 
         return cmd
 
