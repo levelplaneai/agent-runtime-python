@@ -177,6 +177,7 @@ class Runtime:
             with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as sf:
                 json.dump({"seed_outputs": seed_outputs}, sf)
                 seed_file = sf.name
+        proc: asyncio.subprocess.Process | None = None
         try:
             port = 0
             if self._tools:
@@ -212,6 +213,11 @@ class Runtime:
             stderr_bytes = await proc.stderr.read() if proc.stderr else b""
 
             return self._read_result(data_dir, run_id, proc.returncode, stderr_bytes)
+        except asyncio.CancelledError:
+            if proc is not None and proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+            raise
         finally:
             if server is not None:
                 server.stop()
