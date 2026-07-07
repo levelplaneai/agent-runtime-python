@@ -191,7 +191,12 @@ class Runtime:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=self._make_env(),
-                limit=2**22,  # 4 MB — model responses can exceed the 64 KB default
+                # 256 MB — the runtime streams each trace event as ONE stdout JSON
+                # line, and flow_start echoes the raw inputs including file bytes
+                # (a 5 MB drawing package is a ~6.6 MB base64 line). The 4 MB limit
+                # failed package runs with "Separator is not found, and chunk
+                # exceed the limit" before the first event was parsed.
+                limit=2**28,
             )
             if proc.stdout is None:
                 raise RuntimeError("subprocess stdout pipe unexpectedly None")
